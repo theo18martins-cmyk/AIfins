@@ -1,0 +1,10 @@
+/* Base Styles */
+:root {
+  --primary: #2563eb;
+  --bg-slate-50: #f8fafc;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}

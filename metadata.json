@@ -1,0 +1,7 @@
+{
+  "name": "FinAI - Intelligent Financial Analyst",
+  "description": "An advanced financial intelligence system that transforms raw data into strategic, visual, and actionable insights using the Gemini 3 Pro model.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
