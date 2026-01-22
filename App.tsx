@@ -541,6 +541,44 @@ const App: React.FC = () => {
     setUser(null);
   };
 
+  // Função para salvar alterações do perfil
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const profileNameInput = document.getElementById('profileName') as HTMLInputElement;
+    const newName = profileNameInput?.value?.trim();
+
+    if (!newName) {
+      showToast("Por favor, informe um nome de exibição.", "error");
+      return;
+    }
+
+    if (!user) {
+      showToast("Usuário não autenticado.", "error");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ name: newName })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error("Erro ao salvar perfil:", error);
+        showToast("Erro ao salvar alterações. Tente novamente.", "error");
+        return;
+      }
+
+      // Atualiza o estado local
+      setUserProfile((prev: any) => ({ ...prev, name: newName }));
+      showToast("Perfil atualizado com sucesso!", "success");
+    } catch (err) {
+      console.error("Erro ao salvar perfil:", err);
+      showToast("Erro ao salvar alterações. Tente novamente.", "error");
+    }
+  };
+
   // Função de upload de foto de perfil
   const handleProfilePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -955,10 +993,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
     );
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    showToast("Perfil atualizado com sucesso!", "success");
-  };
+
 
   const handleConnectWhatsapp = () => {
     showToast("Tentando conexão com WhatsApp...");
@@ -3557,7 +3592,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                     <form onSubmit={handleSaveProfile} className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome de Exibição</label>
-                        <input className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none" defaultValue={userProfile?.name || ''} placeholder="Seu nome" />
+                        <input id="profileName" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none" defaultValue={userProfile?.name || ''} placeholder="Seu nome" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID do Usuário</label>
