@@ -46,12 +46,25 @@ export interface BankAccount {
   bankCode?: string;
 }
 
+export interface Investment {
+  id: string;
+  user_id?: string;
+  type: string;
+  ticker: string;
+  name: string;
+  quantity: number;
+  average_price: number;
+  current_value: number;
+  date: string;
+}
+
 export enum AnalysisMode {
   DASHBOARD = 'DASHBOARD',
   TRANSACTIONS = 'TRANSACTIONS',
   BUDGET = 'BUDGET',
   DEBTS = 'DEBTS',
   GOALS = 'GOALS',
+  INVESTMENTS = 'INVESTMENTS',
   FAMILY = 'FAMILY',
   WHATSAPP = 'WHATSAPP',
   PROFILE = 'PROFILE',
