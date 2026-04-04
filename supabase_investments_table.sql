@@ -1,3 +1,4 @@
+
 -- ==============================================================
 -- SQL para criar a tabela de Investimentos no Supabase
 -- Execute este script no SQL Editor do seu painel Supabase
