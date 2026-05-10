@@ -2,10 +2,7 @@
 export default {
   content: [
     './index.html',
-    './App.tsx',
-    './Login.tsx',
-    './Onboarding.tsx',
-    './index.tsx',
+    './*.{ts,tsx}',
     './services/**/*.{ts,tsx}',
   ],
   theme: {
