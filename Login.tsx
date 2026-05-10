@@ -10,8 +10,27 @@ const Login: React.FC<LoginProps> = ({ onSuccess }) => {
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [isSignUp, setIsSignUp] = useState(false);
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
+    const [forgotSent, setForgotSent] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+        try {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/dashboard`,
+            });
+            if (resetError) throw resetError;
+            setForgotSent(true);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -129,9 +148,39 @@ const Login: React.FC<LoginProps> = ({ onSuccess }) => {
                         </button>
                     </form>
 
-                    <div className="mt-12 text-center">
+                    {!isSignUp && !isForgotPassword && (
+                        <div className="mt-4 text-center">
+                            <button
+                                onClick={() => { setIsForgotPassword(true); setError(null); }}
+                                className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-all"
+                            >
+                                Esqueceu sua senha?
+                            </button>
+                        </div>
+                    )}
+
+                    {isForgotPassword && (
+                        <div className="mt-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {forgotSent ? (
+                                <div className="p-5 bg-emerald-50 text-emerald-700 rounded-2xl text-sm font-bold text-center border border-emerald-200">
+                                    ✅ E-mail de recuperação enviado! Verifique sua caixa de entrada.
+                                    <button onClick={() => { setIsForgotPassword(false); setForgotSent(false); }} className="block mt-3 mx-auto text-xs text-slate-400 hover:text-blue-600 transition-all">Voltar ao login</button>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleForgotPassword} className="space-y-4">
+                                    <p className="text-sm text-slate-500 font-bold text-center">Digite seu e-mail para receber o link de recuperação</p>
+                                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-7 py-5 bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-[1.5rem] transition-all font-bold text-slate-700 placeholder:text-slate-300 outline-none shadow-sm" placeholder="seu@email.com" required />
+                                    {error && <p className="text-red-500 text-xs font-bold">{error}</p>}
+                                    <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.3em] transition-all shadow-xl disabled:opacity-50">{loading ? 'Enviando...' : 'Enviar Link de Recuperação'}</button>
+                                    <button type="button" onClick={() => { setIsForgotPassword(false); setError(null); }} className="w-full text-sm font-bold text-slate-400 hover:text-slate-600 transition-all">← Voltar ao login</button>
+                                </form>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="mt-8 text-center">
                         <button
-                            onClick={() => setIsSignUp(!isSignUp)}
+                            onClick={() => { setIsSignUp(!isSignUp); setIsForgotPassword(false); setError(null); }}
                             className="text-sm font-bold text-slate-400 hover:text-blue-600 transition-all border-b-2 border-transparent hover:border-blue-600 pb-1"
                         >
                             {isSignUp ? 'Já faz parte da elite? Entre aqui' : 'Novo por aqui? Crie seu acesso premium'}

@@ -38,6 +38,11 @@ export const Icons = {
   Bank: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>,
   Shield: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-7.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
   Investments: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3v18h18" /></svg>,
+  FileText: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  History: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Lightbulb: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m1.636-6.364l.707.707M12 21a7 7 0 007-7 7 7 0 00-7-7 7 7 0 00-7 7 7 7 0 007 7z" /></svg>,
+  Download: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+  Bell: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
 };
 
 // Componente Modal Dinâmico
@@ -138,6 +143,13 @@ const App: React.FC = () => {
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(null);
   const [isAddingInvestment, setIsAddingInvestment] = useState(false);
 
+  // P1 — Novas abas
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionResult, setPredictionResult] = useState('');
+  const [consultingLoading, setConsultingLoading] = useState(false);
+  const [consultingResult, setConsultingResult] = useState('');
+  const [alerts, setAlerts] = useState<{ msg: string; type: 'warning' | 'info' }[]>([]);
+
   // Foto de Perfil
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +206,30 @@ const App: React.FC = () => {
       }
     }
   }, [user, userProfile]);
+
+  useEffect(() => {
+    const newAlerts: { msg: string; type: 'warning' | 'info' }[] = [];
+    debts.forEach(d => {
+      const parts = d.dueDate.split('/');
+      if (parts.length === 3) {
+        const due = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+        const daysLeft = Math.ceil((due.getTime() - Date.now()) / 86400000);
+        if (daysLeft >= 0 && daysLeft <= 7)
+          newAlerts.push({ msg: `⚠️ Dívida "${d.name}" vence ${daysLeft === 0 ? 'hoje' : `em ${daysLeft} dia(s)`}`, type: 'warning' });
+      }
+    });
+    budgets.forEach(b => {
+      if (b.planned > 0 && b.realized >= b.planned * 0.8) {
+        const pct = Math.round((b.realized / b.planned) * 100);
+        newAlerts.push({ msg: `📊 Orçamento "${b.category}" está em ${pct}% do limite`, type: pct >= 100 ? 'warning' : 'info' });
+      }
+    });
+    goals.forEach(g => {
+      if (g.target > 0 && g.current / g.target >= 0.9 && g.current < g.target)
+        newAlerts.push({ msg: `🎯 Meta "${g.title}" quase completa! Falta R$ ${(g.target - g.current).toLocaleString('pt-BR')}`, type: 'info' });
+    });
+    setAlerts(newAlerts);
+  }, [debts, budgets, goals]);
 
   const fetchAllData = async () => {
     if (!user || !userProfile) return;
@@ -763,6 +799,93 @@ const App: React.FC = () => {
     // Imagem padrão genérica de finanças/metas
     return 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=400';
   };
+
+  const formatCurrency = (val: number) =>
+    val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const exportCSV = (data: any[], filename: string, headers: string[], rowFn: (row: any) => any[]) => {
+    const rows = data.map(rowFn);
+    const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    showToast('Arquivo exportado com sucesso!', 'success');
+  };
+
+  const calculateHealthScore = () => {
+    const totalInc = transactions.filter(t => t.val > 0).reduce((a, t) => a + t.val, 0);
+    const totalExp = Math.abs(transactions.filter(t => t.val < 0).reduce((a, t) => a + t.val, 0));
+    const months = Math.max(1, chartData.length);
+    const monthlyInc = totalInc / months;
+    const monthlyExp = totalExp / months;
+    const savingsRate = totalInc > 0 ? (totalInc - totalExp) / totalInc : 0;
+    const savingsPts = Math.min(30, Math.max(0, savingsRate * 150));
+    const totalDebt = debts.reduce((a, d) => a + d.remaining, 0);
+    const dti = monthlyInc > 0 ? totalDebt / (monthlyInc * 12) : 1;
+    const debtPts = Math.min(25, Math.max(0, (1 - Math.min(1, dti)) * 25));
+    const totalBalance = bankAccounts.reduce((a, b) => a + b.balance, 0);
+    const emergencyMonths = monthlyExp > 0 ? totalBalance / monthlyExp : 0;
+    const emergencyPts = Math.min(25, (emergencyMonths / 6) * 25);
+    const avgGoal = goals.length > 0 ? goals.reduce((a, g) => a + (g.target > 0 ? Math.min(1, g.current / g.target) : 0), 0) / goals.length : 0;
+    const goalsPts = avgGoal * 20;
+    const total = Math.round(savingsPts + debtPts + emergencyPts + goalsPts);
+    return {
+      total,
+      color: total >= 75 ? 'text-emerald-600' : total >= 50 ? 'text-blue-600' : total >= 25 ? 'text-amber-500' : 'text-red-500',
+      label: total >= 75 ? 'Excelente' : total >= 50 ? 'Bom' : total >= 25 ? 'Regular' : 'Crítico',
+      breakdown: [
+        { label: 'Taxa de Poupança', pts: Math.round(savingsPts), max: 30, value: `${(savingsRate * 100).toFixed(1)}%`, tip: 'Meta: poupar acima de 20% da renda' },
+        { label: 'Controle de Dívidas', pts: Math.round(debtPts), max: 25, value: dti < 0.1 ? 'Excelente' : dti < 0.3 ? 'Bom' : 'Atenção', tip: 'Meta: dívidas < 30% da renda anual' },
+        { label: 'Reserva de Emergência', pts: Math.round(emergencyPts), max: 25, value: `${emergencyMonths.toFixed(1)} meses`, tip: 'Meta: 6 meses de despesas guardados' },
+        { label: 'Progresso nas Metas', pts: Math.round(goalsPts), max: 20, value: `${(avgGoal * 100).toFixed(0)}%`, tip: 'Meta: avançar consistentemente nos objetivos' },
+      ]
+    };
+  };
+
+  const generatePrediction = async () => {
+    setPredictionLoading(true);
+    setPredictionResult('');
+    try {
+      const totalInc = transactions.filter(t => t.val > 0).reduce((a, t) => a + t.val, 0);
+      const totalExp = Math.abs(transactions.filter(t => t.val < 0).reduce((a, t) => a + t.val, 0));
+      const months = Math.max(1, chartData.length);
+      const avgInc = totalInc / months;
+      const avgExp = totalExp / months;
+      const context = `HISTÓRICO (${months} meses): Receita média R$ ${avgInc.toFixed(2)}/mês, Despesa média R$ ${avgExp.toFixed(2)}/mês. Saldo atual: R$ ${bankAccounts.reduce((a, b) => a + b.balance, 0).toFixed(2)}. Dívidas: R$ ${debts.reduce((a, d) => a + d.remaining, 0).toFixed(2)}. Metas: ${goals.map(g => `${g.title} (${((g.current / Math.max(1, g.target)) * 100).toFixed(0)}% de R$${g.target})`).join(', ') || 'Nenhuma'}. Orçamentos: ${budgets.map(b => `${b.category}: planejado R$${b.planned}, realizado R$${b.realized}`).join(', ') || 'Nenhum'}.`;
+      const result = await gemini.analyzeData(context, 'Faça uma análise preditiva completa das minhas finanças para os próximos 3 meses. Projete o saldo mês a mês, estime quando cada meta será concluída no ritmo atual, identifique riscos e oportunidades, e dê 3 recomendações concretas para melhorar meu cenário financeiro futuro.');
+      setPredictionResult(result);
+    } catch {
+      setPredictionResult('Erro ao gerar previsão. Verifique sua chave de API e tente novamente.');
+    } finally {
+      setPredictionLoading(false);
+    }
+  };
+
+  const generateConsulting = async () => {
+    setConsultingLoading(true);
+    setConsultingResult('');
+    try {
+      const score = calculateHealthScore();
+      const context = `Score de Saúde Financeira: ${score.total}/100 (${score.label}). Detalhes: ${score.breakdown.map(b => `${b.label}: ${b.pts}/${b.max}pts (${b.value})`).join(', ')}. Saldo total: R$${bankAccounts.reduce((a, b) => a + b.balance, 0).toFixed(2)}. Dívidas: R$${debts.reduce((a, d) => a + d.remaining, 0).toFixed(2)}. Orçamentos excedidos: ${budgets.filter(b => b.realized > b.planned && b.planned > 0).map(b => b.category).join(', ') || 'Nenhum'}. Metas ativas: ${goals.length}.`;
+      const result = await gemini.analyzeData(context, 'Com base no meu score de saúde financeira e nos dados acima, faça uma consultoria financeira completa e personalizada. Dê um diagnóstico honesto, identifique os 3 maiores pontos de melhoria, sugira um plano de ação com prioridades e prazos realistas, e explique como posso aumentar meu score nos próximos 6 meses.');
+      setConsultingResult(result);
+    } catch {
+      setConsultingResult('Erro ao gerar consultoria. Verifique sua chave de API e tente novamente.');
+    } finally {
+      setConsultingLoading(false);
+    }
+  };
+
+  const renderAIText = (text: string) => text.split('\n').map((line, i) => {
+    if (line.startsWith('### ')) return <h4 key={i} className="font-black text-slate-800 text-sm mt-4 mb-1">{line.replace('### ', '')}</h4>;
+    if (line.startsWith('## ')) return <h3 key={i} className="font-black text-slate-900 mt-5 mb-1">{line.replace('## ', '')}</h3>;
+    const boldLine = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    if (line.startsWith('- ') || line.startsWith('* ')) return <p key={i} className="flex items-start space-x-2 text-slate-700"><span className="text-blue-500 mt-0.5 shrink-0">•</span><span dangerouslySetInnerHTML={{ __html: boldLine.replace(/^[-*] /, '') }} /></p>;
+    if (line.trim()) return <p key={i} className="text-slate-700" dangerouslySetInnerHTML={{ __html: boldLine }} />;
+    return <div key={i} className="h-2" />;
+  });
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
@@ -1651,6 +1774,10 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
     { id: AnalysisMode.INVESTMENTS, label: 'Investimentos', icon: Icons.Investments },
     { id: AnalysisMode.FAMILY, label: 'Família', icon: Icons.Family },
     { id: AnalysisMode.WHATSAPP, label: 'WhatsApp', icon: Icons.Whatsapp },
+    { id: AnalysisMode.REPORTS, label: 'Relatórios', icon: Icons.FileText },
+    { id: AnalysisMode.PREDICTION, label: 'Previsão', icon: Icons.TrendingUp },
+    { id: AnalysisMode.CONSULTING, label: 'Consultoria', icon: Icons.Lightbulb },
+    { id: AnalysisMode.AUDIT, label: 'Histórico', icon: Icons.History },
     { id: AnalysisMode.PROFILE, label: 'Perfil', icon: Icons.User },
   ];
 
@@ -2763,6 +2890,10 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                   {activeTab === AnalysisMode.FAMILY && 'Membros da Família 👨‍👩‍👧‍👦'}
                   {activeTab === AnalysisMode.WHATSAPP && 'Agente IA 🤖'}
                   {activeTab === AnalysisMode.INVESTMENTS && 'Investimentos 📈'}
+                  {activeTab === AnalysisMode.REPORTS && 'Relatórios 📋'}
+                  {activeTab === AnalysisMode.PREDICTION && 'Previsão Financeira 🔮'}
+                  {activeTab === AnalysisMode.CONSULTING && 'Consultoria IA 💡'}
+                  {activeTab === AnalysisMode.AUDIT && 'Histórico de Atividades 🕐'}
                   {activeTab === AnalysisMode.PROFILE && 'Minha Conta 👤'}
                 </h1>
                 <p className="hidden sm:block text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
@@ -2823,6 +2954,18 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
           </header>
 
           <div className="px-6 lg:px-12 pb-32 lg:pb-16 space-y-12">
+
+            {/* ALERTAS AUTOMÁTICOS */}
+            {alerts.length > 0 && (
+              <div className="space-y-2">
+                {alerts.map((a, i) => (
+                  <div key={i} className={`flex items-center justify-between px-5 py-3 rounded-2xl text-sm font-bold ${a.type === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+                    <span>{a.msg}</span>
+                    <button onClick={() => setAlerts(prev => prev.filter((_, j) => j !== i))} className="ml-4 text-slate-400 hover:text-slate-600 font-black text-lg leading-none">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* VIEW: DASHBOARD */}
             {activeTab === AnalysisMode.DASHBOARD && (
@@ -4051,6 +4194,266 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                 </div>
               </div>
             )}
+            {/* VIEW: REPORTS */}
+            {activeTab === AnalysisMode.REPORTS && (
+              <div className="max-w-5xl mx-auto space-y-10 animate-in zoom-in-95 duration-700">
+                <div className="flex flex-wrap gap-4">
+                  <button onClick={() => exportCSV(transactions, `finai-transacoes-${new Date().toISOString().slice(0,10)}.csv`, ['Data','Descrição','Categoria','Conta','Valor','Status'], t => [t.date, t.desc, t.cat, t.acc, String(t.val).replace('.',','), t.status])} className="flex items-center space-x-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg">
+                    <Icons.Download /><span>Exportar Transações CSV</span>
+                  </button>
+                  <button onClick={() => exportCSV(budgets, `finai-orcamentos-${new Date().toISOString().slice(0,10)}.csv`, ['Categoria','Planejado','Realizado','Diferença'], b => [b.category, String(b.planned).replace('.',','), String(b.realized).replace('.',','), String(b.planned - b.realized).replace('.',',')])} className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg">
+                    <Icons.Download /><span>Exportar Orçamento CSV</span>
+                  </button>
+                  <button onClick={() => window.print()} className="flex items-center space-x-2 px-6 py-3 bg-slate-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 active:scale-95 transition-all shadow-lg">
+                    <Icons.FileText /><span>Imprimir / Salvar PDF</span>
+                  </button>
+                </div>
+
+                <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Resumo Mensal</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-slate-100">
+                        {['Mês','Receitas','Despesas','Saldo'].map(h => <th key={h} className={`py-3 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest ${h === 'Mês' ? 'text-left' : 'text-right'}`}>{h}</th>)}
+                      </tr></thead>
+                      <tbody>
+                        {chartData.map((m, i) => { const s = m.receita - m.despesa; return (
+                          <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                            <td className="py-4 px-3 font-black text-slate-800">{m.name}</td>
+                            <td className="py-4 px-3 text-right font-bold text-emerald-600">R$ {m.receita.toLocaleString('pt-BR')}</td>
+                            <td className="py-4 px-3 text-right font-bold text-red-500">R$ {m.despesa.toLocaleString('pt-BR')}</td>
+                            <td className={`py-4 px-3 text-right font-black ${s >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{s >= 0 ? '+' : ''}R$ {s.toLocaleString('pt-BR')}</td>
+                          </tr>);
+                        })}
+                        {chartData.length === 0 && <tr><td colSpan={4} className="py-10 text-center text-slate-400 font-bold">Nenhum dado no período selecionado</td></tr>}
+                      </tbody>
+                      {chartData.length > 0 && <tfoot>
+                        <tr className="bg-slate-50">
+                          <td className="py-4 px-3 font-black text-slate-700 text-xs uppercase">TOTAL</td>
+                          <td className="py-4 px-3 text-right font-black text-emerald-600">R$ {chartData.reduce((a,m) => a+m.receita, 0).toLocaleString('pt-BR')}</td>
+                          <td className="py-4 px-3 text-right font-black text-red-500">R$ {chartData.reduce((a,m) => a+m.despesa, 0).toLocaleString('pt-BR')}</td>
+                          <td className={`py-4 px-3 text-right font-black ${chartData.reduce((a,m) => a+m.receita-m.despesa, 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>R$ {chartData.reduce((a,m) => a+m.receita-m.despesa, 0).toLocaleString('pt-BR')}</td>
+                        </tr>
+                      </tfoot>}
+                    </table>
+                  </div>
+                </div>
+
+                <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Gastos por Categoria</h3>
+                  {pieData.length > 0 ? (
+                    <div className="space-y-4">
+                      {[...pieData].sort((a,b) => b.value - a.value).map((cat, i) => {
+                        const total = pieData.reduce((a,c) => a+c.value, 0);
+                        const pct = total > 0 ? (cat.value / total * 100).toFixed(1) : '0';
+                        return (
+                          <div key={i} className="flex items-center space-x-4">
+                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                            <span className="text-sm font-bold text-slate-700 w-36 truncate">{cat.name}</span>
+                            <div className="flex-1"><div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} /></div></div>
+                            <span className="text-xs font-black text-slate-500 w-10 text-right">{pct}%</span>
+                            <span className="text-sm font-black text-slate-800 w-32 text-right">R$ {cat.value.toLocaleString('pt-BR')}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : <p className="text-slate-400 font-bold text-center py-8">Nenhuma despesa no período</p>}
+                </div>
+
+                {debts.length > 0 && (
+                  <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Resumo de Dívidas</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-slate-100">
+                          {['Dívida','Total','Restante','Pago','Vencimento'].map(h => <th key={h} className={`py-3 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest ${h === 'Dívida' ? 'text-left' : 'text-right'}`}>{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                          {debts.map((d,i) => (
+                            <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                              <td className="py-4 px-3 font-black text-slate-800">{d.name}</td>
+                              <td className="py-4 px-3 text-right font-bold text-slate-600">R$ {d.total.toLocaleString('pt-BR')}</td>
+                              <td className="py-4 px-3 text-right font-black text-red-500">R$ {d.remaining.toLocaleString('pt-BR')}</td>
+                              <td className="py-4 px-3 text-right font-bold text-emerald-600">R$ {(d.total-d.remaining).toLocaleString('pt-BR')}</td>
+                              <td className="py-4 px-3 text-right font-bold text-slate-500">{d.dueDate}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VIEW: PREDICTION */}
+            {activeTab === AnalysisMode.PREDICTION && (
+              <div className="max-w-4xl mx-auto space-y-10 animate-in zoom-in-95 duration-700">
+                {(() => {
+                  const totalInc = transactions.filter(t => t.val > 0).reduce((a,t) => a+t.val, 0);
+                  const totalExp = Math.abs(transactions.filter(t => t.val < 0).reduce((a,t) => a+t.val, 0));
+                  const months = Math.max(1, chartData.length);
+                  const avgInc = totalInc / months;
+                  const avgExp = totalExp / months;
+                  const currentBalance = bankAccounts.reduce((a,b) => a+b.balance, 0);
+                  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                  const now = new Date();
+                  const projections = [1,2,3].map(m => {
+                    const d = new Date(now.getFullYear(), now.getMonth()+m, 1);
+                    return { name: monthNames[d.getMonth()], saldo: currentBalance + (avgInc - avgExp) * m, receita: avgInc, despesa: avgExp };
+                  });
+                  return (<>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      {projections.map((p,i) => (
+                        <div key={i} className={`card p-7 rounded-[2rem] border-none shadow-sm ${p.saldo >= 0 ? 'bg-emerald-50/40' : 'bg-red-50/40'}`}>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Projeção — {p.name}</p>
+                          <p className={`text-2xl font-black ${p.saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>R$ {p.saldo.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</p>
+                          <p className="text-xs text-slate-400 mt-2">Entradas est.: R$ {p.receita.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</p>
+                          <p className="text-xs text-slate-400">Saídas est.: R$ {p.despesa.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {goals.length > 0 && (
+                      <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Previsão de Conclusão das Metas</h3>
+                        <div className="space-y-6">
+                          {goals.map((g,i) => {
+                            const remaining = g.target - g.current;
+                            const monthsLeft = avgInc > avgExp && remaining > 0 ? Math.ceil(remaining / (avgInc - avgExp)) : null;
+                            const pct = g.target > 0 ? Math.min(100, (g.current/g.target)*100) : 0;
+                            return (
+                              <div key={i}>
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="font-black text-sm text-slate-800">{g.title}</span>
+                                  <span className="text-xs font-bold text-slate-500">{g.current >= g.target ? '✅ Concluída!' : monthsLeft ? `~${monthsLeft} mês${monthsLeft > 1 ? 'es' : ''}` : '⚠️ Ritmo insuficiente'}</span>
+                                </div>
+                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} /></div>
+                                <div className="flex justify-between mt-1">
+                                  <span className="text-[10px] text-slate-400">R$ {g.current.toLocaleString('pt-BR')}</span>
+                                  <span className="text-[10px] text-slate-400">R$ {g.target.toLocaleString('pt-BR')}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>);
+                })()}
+                <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                  <div className="flex items-center justify-between mb-6">
+                    <div><h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Análise Preditiva por IA</h3><p className="text-xs text-slate-400 mt-1">Powered by Gemini 2.5 Pro</p></div>
+                    <button onClick={generatePrediction} disabled={predictionLoading} className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg disabled:opacity-50">
+                      <Icons.Sparkles /><span>{predictionLoading ? 'Analisando...' : 'Gerar Previsão IA'}</span>
+                    </button>
+                  </div>
+                  {predictionLoading && <div className="flex items-center justify-center py-12 space-x-3"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /><p className="text-sm font-bold text-slate-400">A IA está analisando seus dados...</p></div>}
+                  {predictionResult && !predictionLoading && <div className="space-y-2">{renderAIText(predictionResult)}</div>}
+                  {!predictionResult && !predictionLoading && <div className="text-center py-12"><div className="text-5xl mb-4">🔮</div><p className="text-slate-400 font-bold">Clique em "Gerar Previsão IA" para uma análise preditiva personalizada</p></div>}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: AUDIT */}
+            {activeTab === AnalysisMode.AUDIT && (
+              <div className="max-w-4xl mx-auto space-y-10 animate-in zoom-in-95 duration-700">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {[
+                    { label: 'Transações Registradas', val: transactions.length, color: 'text-blue-600', bg: 'bg-blue-50/50' },
+                    { label: 'Dívidas Ativas', val: debts.length, color: 'text-orange-600', bg: 'bg-orange-50/50' },
+                    { label: 'Metas em Andamento', val: goals.filter(g => g.current < g.target).length, color: 'text-purple-600', bg: 'bg-purple-50/50' },
+                  ].map((c,i) => (
+                    <div key={i} className={`card p-7 rounded-[2rem] border-none shadow-sm ${c.bg}`}>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{c.label}</p>
+                      <p className={`text-4xl font-black ${c.color}`}>{c.val}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Linha do Tempo — Últimas Movimentações</h3>
+                  {transactions.length > 0 ? (
+                    <div className="space-y-2 max-h-[600px] overflow-y-auto no-scrollbar">
+                      {[...transactions].slice(0, 60).map((t,i) => (
+                        <div key={i} className="flex items-start space-x-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-base ${t.val > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{t.val > 0 ? '↑' : '↓'}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <p className="font-black text-slate-800 text-sm truncate">{t.desc}</p>
+                              <span className={`font-black text-sm shrink-0 ml-4 ${t.val > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{t.val > 0 ? '+' : ''}R$ {Math.abs(t.val).toLocaleString('pt-BR')}</span>
+                            </div>
+                            <div className="flex items-center flex-wrap gap-x-3 mt-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">{t.cat}</span>
+                              <span className="text-slate-200">•</span>
+                              <span className="text-[10px] font-bold text-slate-400">{t.date}</span>
+                              {t.user && t.user !== 'Membro' && <><span className="text-slate-200">•</span><span className="text-[10px] font-bold text-blue-400">{t.user}</span></>}
+                              <span className="text-slate-200">•</span>
+                              <span className={`text-[10px] font-black uppercase ${t.status === 'Pago' ? 'text-emerald-500' : 'text-amber-500'}`}>{t.status}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-16"><div className="text-5xl mb-4">🕐</div><p className="text-slate-400 font-bold">Nenhuma movimentação registrada ainda</p></div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: CONSULTING */}
+            {activeTab === AnalysisMode.CONSULTING && (
+              <div className="max-w-4xl mx-auto space-y-10 animate-in zoom-in-95 duration-700">
+                {(() => {
+                  const score = calculateHealthScore();
+                  const strokeLen = 251.2;
+                  const strokeColor = score.total >= 75 ? '#059669' : score.total >= 50 ? '#2563eb' : score.total >= 25 ? '#d97706' : '#dc2626';
+                  return (<>
+                    <div className="card p-10 rounded-[2.5rem] border-none shadow-sm bg-white text-center">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Score de Saúde Financeira</p>
+                      <div className="relative w-40 h-40 mx-auto mb-6">
+                        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                          <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                          <circle cx="50" cy="50" r="40" fill="none" stroke={strokeColor} strokeWidth="12" strokeDasharray={`${(score.total/100)*strokeLen} ${strokeLen}`} strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className={`text-4xl font-black ${score.color}`}>{score.total}</span>
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">/100</span>
+                        </div>
+                      </div>
+                      <p className={`text-2xl font-black ${score.color} mb-2`}>{score.label}</p>
+                      <p className="text-sm text-slate-400 max-w-xs mx-auto">{score.total >= 75 ? 'Você está no caminho certo! Continue assim.' : score.total >= 50 ? 'Bom progresso! Há espaço para melhorar.' : score.total >= 25 ? 'Atenção necessária em alguns pontos.' : 'Situação crítica — tome ação agora.'}</p>
+                    </div>
+                    <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Detalhamento do Score</h3>
+                      <div className="space-y-6">
+                        {score.breakdown.map((item,i) => (
+                          <div key={i}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div><span className="font-black text-sm text-slate-800">{item.label}</span><span className="ml-2 text-xs text-slate-400">{item.value}</span></div>
+                              <span className="font-black text-sm text-slate-700">{item.pts}/{item.max} pts</span>
+                            </div>
+                            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mb-1"><div className={`h-full rounded-full transition-all ${item.pts/item.max >= 0.75 ? 'bg-emerald-500' : item.pts/item.max >= 0.5 ? 'bg-blue-500' : item.pts/item.max >= 0.25 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${(item.pts/item.max)*100}%` }} /></div>
+                            <p className="text-[10px] text-slate-400">{item.tip}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="card p-8 rounded-[2.5rem] border-none shadow-sm bg-white">
+                      <div className="flex items-center justify-between mb-6">
+                        <div><h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Consultoria Personalizada IA</h3><p className="text-xs text-slate-400 mt-1">Análise baseada no seu perfil financeiro real</p></div>
+                        <button onClick={generateConsulting} disabled={consultingLoading} className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg disabled:opacity-50">
+                          <Icons.Lightbulb /><span>{consultingLoading ? 'Analisando...' : 'Consultar IA'}</span>
+                        </button>
+                      </div>
+                      {consultingLoading && <div className="flex items-center justify-center py-12 space-x-3"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /><p className="text-sm font-bold text-slate-400">A IA está elaborando sua consultoria...</p></div>}
+                      {consultingResult && !consultingLoading && <div className="space-y-2">{renderAIText(consultingResult)}</div>}
+                      {!consultingResult && !consultingLoading && <div className="text-center py-12"><div className="text-5xl mb-4">💡</div><p className="text-slate-400 font-bold">Clique em "Consultar IA" para receber uma consultoria financeira personalizada</p></div>}
+                    </div>
+                  </>);
+                })()}
+              </div>
+            )}
+
           </div>
         </main>
       </div>
