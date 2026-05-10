@@ -141,6 +141,7 @@ const App: React.FC = () => {
   // Foto de Perfil
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
+  const profileNameRef = useRef<HTMLInputElement>(null);
 
   // Helper para verificar permissões
   const hasPermission = (permission: string) => {
@@ -201,12 +202,16 @@ const App: React.FC = () => {
       const familyId = userProfile.family_id;
       let queryUserIds = [user.id];
 
+      let localMembers: { id: string; name: string }[] = [];
       if (familyId) {
         const { data: members } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, name')
           .eq('family_id', familyId);
-        if (members) queryUserIds = members.map(m => m.id);
+        if (members) {
+          localMembers = members;
+          queryUserIds = members.map(m => m.id);
+        }
       }
 
       // Fetch Transactions
@@ -218,7 +223,7 @@ const App: React.FC = () => {
         desc: t.description,
         cat: t.category,
         acc: t.account || 'N/A',
-        user: familyMembers.find(m => m.id === t.user_id)?.name || 'Membro',
+        user: localMembers.find(m => m.id === t.user_id)?.name || 'Membro',
         val: Number(t.value),
         status: t.status
       })) || []);
@@ -577,6 +582,7 @@ const App: React.FC = () => {
 
       if (!error) {
         setShowOnboarding(false);
+        setUserProfile((prev: any) => ({ ...prev, has_completed_onboarding: true }));
         showToast("Bem-vindo ao FinAI! Seu perfil foi configurado.");
       }
     } catch (err) {
@@ -593,8 +599,7 @@ const App: React.FC = () => {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const profileNameInput = document.getElementById('profileName') as HTMLInputElement;
-    const newName = profileNameInput?.value?.trim();
+    const newName = profileNameRef.current?.value?.trim();
 
     if (!newName) {
       showToast("Por favor, informe um nome de exibição.", "error");
@@ -649,7 +654,6 @@ const App: React.FC = () => {
       // Nome único para o arquivo
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
 
       // Upload para o Supabase Storage
       const { error: uploadError } = await supabase.storage
@@ -3968,7 +3972,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                     <form onSubmit={handleSaveProfile} className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome de Exibição</label>
-                        <input id="profileName" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none" defaultValue={userProfile?.name || ''} placeholder="Seu nome" />
+                        <input ref={profileNameRef} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-black focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none" defaultValue={userProfile?.name || ''} placeholder="Seu nome" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID do Usuário</label>

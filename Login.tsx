@@ -144,7 +144,7 @@ const Login: React.FC<LoginProps> = ({ onSuccess }) => {
             <div className="hidden lg:flex lg:w-1/2 relative bg-slate-900 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 via-transparent to-purple-600/20 z-10"></div>
                 <img
-                    src="file:///C:/Users/Theo%20Martins/.gemini/antigravity/brain/005c014b-a170-4808-a1b9-54b4ce620203/dashboard_preview_illustration_1768259325122.png"
+                    src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&auto=format&fit=crop&q=80"
                     alt="FinAI Dashboard Preview"
                     className="absolute inset-0 w-full h-full object-cover opacity-60 scale-110 blur-[2px] hover:blur-none hover:scale-100 transition-all duration-1000"
                 />

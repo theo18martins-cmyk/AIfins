@@ -3,8 +3,8 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { FINAI_SYSTEM_INSTRUCTION } from "../constants";
 
 export class GeminiService {
-  private primaryModel = 'gemini-3-pro-preview';
-  private fallbackModel = 'gemini-3-flash-preview';
+  private primaryModel = 'gemini-2.5-pro-preview-05-06';
+  private fallbackModel = 'gemini-2.5-flash-preview-04-17';
   private useFallback = false;
 
   private isQuotaError(error: any): boolean {
