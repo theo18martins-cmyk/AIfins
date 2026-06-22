@@ -3,8 +3,10 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { FINAI_SYSTEM_INSTRUCTION } from "../constants";
 
 export class GeminiService {
-  private primaryModel = 'gemini-2.5-pro';
-  private fallbackModel = 'gemini-2.5-flash';
+  // gemini-2.5-pro tem cota ZERO no free tier (limit: 0) -> usar flash como primario.
+  // Se migrar para tier pago, pode voltar o primario para 'gemini-2.5-pro'.
+  private primaryModel = 'gemini-2.5-flash';
+  private fallbackModel = 'gemini-2.5-flash-lite';
   private useFallback = false;
 
   private isQuotaError(error: any): boolean {
