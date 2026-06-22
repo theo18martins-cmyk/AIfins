@@ -353,7 +353,9 @@ const App: React.FC = () => {
     try {
       const uniqueTickers = [...new Set(tickers)];
       const tickerString = uniqueTickers.join(',');
-      const response = await fetch(`https://brapi.dev/api/quote/${tickerString}`);
+      const brapiToken = import.meta.env.VITE_BRAPI_TOKEN;
+      const brapiUrl = `https://brapi.dev/api/quote/${tickerString}${brapiToken ? `?token=${brapiToken}` : ''}`;
+      const response = await fetch(brapiUrl);
       const data = await response.json();
       if (data.results) {
         const quotes: Record<string, number> = {};
@@ -2284,6 +2286,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
               goalTarget: '',
               goalContribution: '',
               goalWithdrawal: '',
+              goalImageUrl: '',
               cardLimit: '',
               cardBill: '',
               cardPaid: '',
