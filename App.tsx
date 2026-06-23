@@ -38,6 +38,7 @@ export const Icons = {
   Bank: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>,
   Shield: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-7.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
   Investments: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3v18h18" /></svg>,
+  Recurring: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
   FileText: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
   History: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Lightbulb: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m1.636-6.364l.707.707M12 21a7 7 0 007-7 7 7 0 00-7-7 7 7 0 00-7 7 7 7 0 007 7z" /></svg>,
@@ -107,6 +108,9 @@ const App: React.FC = () => {
   const [contributionGoalId, setContributionGoalId] = useState<string | null>(null);
   const [withdrawalGoalId, setWithdrawalGoalId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [recurrings, setRecurrings] = useState<any[]>([]);
+  const [showRecForm, setShowRecForm] = useState(false);
+  const [recForm, setRecForm] = useState({ description: '', value: '', type: 'Despesa', category: 'Outros', day_of_month: '5' });
 
   // Autenticação e Onboarding
   const [user, setUser] = useState<User | null>(null);
@@ -342,6 +346,10 @@ const App: React.FC = () => {
       if (tickers.length > 0) {
         fetchQuotes(tickers);
       }
+
+      // Fetch Recurring
+      const { data: recs } = await supabase.from('recurring_transactions').select('*').in('user_id', queryUserIds).order('day_of_month');
+      setRecurrings(recs || []);
 
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
@@ -1774,6 +1782,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
     { id: AnalysisMode.DEBTS, label: 'Dívidas', icon: Icons.Debts },
     { id: AnalysisMode.GOALS, label: 'Metas', icon: Icons.Goals },
     { id: AnalysisMode.INVESTMENTS, label: 'Investimentos', icon: Icons.Investments },
+    { id: AnalysisMode.RECURRING, label: 'Recorrências', icon: Icons.Recurring },
     { id: AnalysisMode.FAMILY, label: 'Família', icon: Icons.Family },
     { id: AnalysisMode.WHATSAPP, label: 'WhatsApp', icon: Icons.Whatsapp },
     { id: AnalysisMode.REPORTS, label: 'Relatórios', icon: Icons.FileText },
@@ -2893,6 +2902,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                   {activeTab === AnalysisMode.FAMILY && 'Membros da Família 👨‍👩‍👧‍👦'}
                   {activeTab === AnalysisMode.WHATSAPP && 'Agente IA 🤖'}
                   {activeTab === AnalysisMode.INVESTMENTS && 'Investimentos 📈'}
+                  {activeTab === AnalysisMode.RECURRING && 'Recorrências 🔁'}
                   {activeTab === AnalysisMode.REPORTS && 'Relatórios 📋'}
                   {activeTab === AnalysisMode.PREDICTION && 'Previsão Financeira 🔮'}
                   {activeTab === AnalysisMode.CONSULTING && 'Consultoria IA 💡'}
@@ -3615,6 +3625,132 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
             )}
 
             {/* VIEW: INVESTIMENTOS */}
+            {activeTab === AnalysisMode.RECURRING && (() => {
+              const totalReceitas = recurrings.filter((r: any) => r.active && Number(r.value) > 0).reduce((a: number, r: any) => a + Number(r.value), 0);
+              const totalDespesas = recurrings.filter((r: any) => r.active && Number(r.value) < 0).reduce((a: number, r: any) => a + Math.abs(Number(r.value)), 0);
+
+              const refreshRecurrings = async () => {
+                const { data } = await supabase.from('recurring_transactions').select('*').eq('user_id', user?.id).order('day_of_month');
+                setRecurrings(data || []);
+              };
+
+              const handleAddRecurring = async () => {
+                const val = parseFloat(recForm.value.replace(',', '.'));
+                if (!recForm.description.trim() || !val || val <= 0) { showToast('Preencha descrição e valor.', 'error'); return; }
+                const day = Math.min(31, Math.max(1, parseInt(recForm.day_of_month) || 1));
+                const signed = recForm.type === 'Receita' ? Math.abs(val) : -Math.abs(val);
+                const { error } = await supabase.from('recurring_transactions').insert({
+                  user_id: user?.id, description: recForm.description.trim(), category: recForm.category,
+                  value: signed, type: recForm.type, day_of_month: day, status: 'Pago', active: true
+                });
+                if (error) { console.error(error); showToast('Erro ao criar recorrência.', 'error'); return; }
+                showToast('Recorrência criada!', 'success');
+                setRecForm({ description: '', value: '', type: 'Despesa', category: 'Outros', day_of_month: '5' });
+                setShowRecForm(false);
+                refreshRecurrings();
+              };
+
+              const handleToggleRecurring = async (r: any) => {
+                await supabase.from('recurring_transactions').update({ active: !r.active }).eq('id', r.id);
+                showToast(r.active ? 'Recorrência pausada.' : 'Recorrência reativada.', 'info');
+                refreshRecurrings();
+              };
+
+              const handleDeleteRecurring = (r: any) => {
+                showDeleteConfirmation('Excluir Recorrência', `Excluir "${r.description}"? Os lançamentos já feitos no histórico permanecem.`, async () => {
+                  await supabase.from('recurring_transactions').delete().eq('id', r.id);
+                  showToast('Recorrência excluída!', 'success');
+                  refreshRecurrings();
+                });
+              };
+
+              return (
+                <div className="space-y-6">
+                  {/* Resumo */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="card p-5">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Receitas / mês</p>
+                      <p className="text-2xl font-black text-emerald-600 mt-1">R$ {totalReceitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="card p-5">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Despesas / mês</p>
+                      <p className="text-2xl font-black text-red-500 mt-1">R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                  </div>
+
+                  {/* Botão nova */}
+                  <button onClick={() => setShowRecForm(!showRecForm)} className="w-full sm:w-auto px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
+                    {showRecForm ? '✕ Cancelar' : '+ Nova recorrência'}
+                  </button>
+
+                  {/* Formulário inline */}
+                  {showRecForm && (
+                    <div className="card p-5 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Descrição</label>
+                          <input value={recForm.description} onChange={e => setRecForm({ ...recForm, description: e.target.value })} placeholder="Ex: Salário, Aluguel..." className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Valor (R$)</label>
+                          <input value={recForm.value} onChange={e => setRecForm({ ...recForm, value: e.target.value })} placeholder="5000" inputMode="decimal" className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Tipo</label>
+                          <select value={recForm.type} onChange={e => setRecForm({ ...recForm, type: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="Despesa">Despesa</option>
+                            <option value="Receita">Receita</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
+                          <select value={recForm.category} onChange={e => setRecForm({ ...recForm, category: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            {['Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Moradia', 'Assinaturas', 'Compras', 'Outros'].map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Dia do mês</label>
+                          <input value={recForm.day_of_month} onChange={e => setRecForm({ ...recForm, day_of_month: e.target.value })} placeholder="5" inputMode="numeric" className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                      </div>
+                      <button onClick={handleAddRecurring} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors">Salvar recorrência</button>
+                    </div>
+                  )}
+
+                  {/* Lista */}
+                  {recurrings.length === 0 ? (
+                    <div className="card p-10 text-center">
+                      <p className="text-4xl mb-3">🔁</p>
+                      <p className="text-slate-500 font-semibold">Nenhuma recorrência ainda.</p>
+                      <p className="text-slate-400 text-sm mt-1">Crie aqui ou mande no Telegram: <span className="font-mono">"salário 5000 todo dia 5"</span></p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {recurrings.map((r: any) => {
+                        const isReceita = Number(r.value) > 0;
+                        return (
+                          <div key={r.id} className={`card p-4 flex items-center justify-between gap-4 ${!r.active ? 'opacity-50' : ''}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${isReceita ? 'bg-emerald-50' : 'bg-red-50'}`}>{isReceita ? '💰' : '💸'}</div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 truncate">{r.description}</p>
+                                <p className="text-xs text-slate-400">{r.category} • todo dia {r.day_of_month}{!r.active && ' • pausada'}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <p className={`font-black ${isReceita ? 'text-emerald-600' : 'text-red-500'}`}>{isReceita ? '+' : '-'}R$ {Math.abs(Number(r.value)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                              <button onClick={() => handleToggleRecurring(r)} title={r.active ? 'Pausar' : 'Reativar'} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors">{r.active ? 'Pausar' : 'Ativar'}</button>
+                              <button onClick={() => handleDeleteRecurring(r)} title="Excluir" className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors">Excluir</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {activeTab === AnalysisMode.INVESTMENTS && (() => {
               const totalInvested = investments.reduce((acc, inv) => acc + (inv.quantity * inv.average_price), 0);
               const totalCurrent = investments.reduce((acc, inv) => {
