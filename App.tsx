@@ -111,6 +111,7 @@ const App: React.FC = () => {
   const [recurrings, setRecurrings] = useState<any[]>([]);
   const [showRecForm, setShowRecForm] = useState(false);
   const [recForm, setRecForm] = useState({ description: '', value: '', type: 'Despesa', category: 'Outros', day_of_month: '5' });
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Autenticação e Onboarding
   const [user, setUser] = useState<User | null>(null);
@@ -2869,7 +2870,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
 
         {/* BOTTOM NAV MOBILE */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-200 flex justify-around py-4 px-2 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] rounded-t-[2.5rem]">
-          {menuItems.slice(0, 5).map((item) => (
+          {menuItems.slice(0, 4).map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
@@ -2879,12 +2880,42 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
             </button>
           ))}
           <button
-            onClick={() => setActiveTab(AnalysisMode.PROFILE)}
-            className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all ${activeTab === AnalysisMode.PROFILE ? 'text-blue-600 bg-blue-50 scale-110 shadow-sm' : 'text-slate-400'}`}
+            onClick={() => setShowMobileMenu(true)}
+            className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all ${(showMobileMenu || !menuItems.slice(0, 4).some(m => m.id === activeTab)) ? 'text-blue-600 bg-blue-50 scale-110 shadow-sm' : 'text-slate-400'}`}
           >
-            <Icons.User />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
         </div>
+
+        {/* MOBILE MENU SHEET (botão Mais) */}
+        {showMobileMenu && (
+          <div className="lg:hidden fixed inset-0 z-[95] flex flex-col justify-end" onClick={() => setShowMobileMenu(false)}>
+            <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200" />
+            <div className="relative bg-white rounded-t-[2.5rem] p-6 pb-10 max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6" />
+              <h3 className="text-lg font-black text-slate-800 mb-4">Todas as seções</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {menuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActiveTab(item.id as any); setShowMobileMenu(false); }}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-600'}`}
+                  >
+                    <item.icon />
+                    <span className="text-[11px] font-bold text-center leading-tight">{item.label}</span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => { setActiveTab(AnalysisMode.PROFILE); setShowMobileMenu(false); }}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl transition-all ${activeTab === AnalysisMode.PROFILE ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-600'}`}
+                >
+                  <Icons.User />
+                  <span className="text-[11px] font-bold text-center leading-tight">Perfil</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MAIN CONTENT */}
         <main className="flex-1 flex flex-col overflow-y-auto relative no-scrollbar">
