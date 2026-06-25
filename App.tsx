@@ -288,7 +288,8 @@ const App: React.FC = () => {
         limit: Number(c.credit_limit) || 0,
         bill: Number(c.bill) || 0,
         paid: Number(c.paid) || 0,
-        color: c.color || 'bg-slate-600'
+        color: c.color || 'bg-slate-600',
+        bankAccountId: c.bank_account_id || ''
       })) || []);
 
       // Fetch Budgets
@@ -772,6 +773,7 @@ const App: React.FC = () => {
     cardBill: '',
     cardPaid: '',
     cardColor: 'bg-blue-600',
+    cardBankAccountId: '',
     bankType: 'Conta Corrente' as BankAccount['type'],
     bankBalance: '',
     bankColor: 'bg-blue-600',
@@ -1329,7 +1331,8 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
       cardLimit: card.limit.toString(),
       cardBill: card.bill.toString(),
       cardPaid: card.paid.toString(),
-      cardColor: card.color
+      cardColor: card.color,
+      cardBankAccountId: (card as any).bankAccountId || ''
     });
     setIsModalOpen(true);
   };
@@ -1357,11 +1360,12 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
         name: formData.name,
         credit_limit: parseFloat(formData.cardLimit) || 0,
         bill: parseFloat(formData.cardBill) || 0,
-        color: formData.cardColor
+        color: formData.cardColor,
+        bank_account_id: formData.cardBankAccountId || null
       };
       const { error } = await supabase.from('credit_cards').update(updatedCard).eq('id', editingCardId);
       if (error) { showToast("Erro ao atualizar cartão.", "error"); return; }
-      setCreditCards(prev => prev.map(c => c.id === editingCardId ? { ...c, name: updatedCard.name, limit: updatedCard.credit_limit, bill: updatedCard.bill, color: updatedCard.color } : c));
+      setCreditCards(prev => prev.map(c => c.id === editingCardId ? { ...c, name: updatedCard.name, limit: updatedCard.credit_limit, bill: updatedCard.bill, color: updatedCard.color, bankAccountId: updatedCard.bank_account_id } : c));
       showToast("Cartão atualizado com sucesso!", "success");
     } else if (isAddingCard) {
       if (!formData.name || !formData.cardLimit) {
@@ -1373,11 +1377,12 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
         name: formData.name,
         credit_limit: parseFloat(formData.cardLimit) || 0,
         bill: parseFloat(formData.cardBill) || 0,
-        color: formData.cardColor
+        color: formData.cardColor,
+        bank_account_id: formData.cardBankAccountId || null
       };
       const { data, error } = await supabase.from('credit_cards').insert(newCard).select().single();
       if (error) { showToast("Erro ao adicionar cartão.", "error"); return; }
-      setCreditCards([...creditCards, { id: data.id, name: data.name, bank: data.name, limit: data.credit_limit, bill: data.bill, paid: data.paid || 0, color: data.color }]);
+      setCreditCards([...creditCards, { id: data.id, name: data.name, bank: data.name, limit: data.credit_limit, bill: data.bill, paid: data.paid || 0, color: data.color, bankAccountId: data.bank_account_id }]);
       showToast("Cartão adicionado com sucesso!", "success");
     } else if (editingBankId) {
       const updatedBank = {
@@ -1739,6 +1744,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
       cardBill: '',
       cardPaid: '',
       cardColor: 'bg-blue-600',
+      cardBankAccountId: '',
       bankType: 'Conta Corrente',
       bankBalance: '',
       bankColor: 'bg-blue-600',
@@ -2301,6 +2307,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
               cardBill: '',
               cardPaid: '',
               cardColor: 'bg-blue-600',
+              cardBankAccountId: '',
               bankType: 'Conta Corrente',
               bankBalance: '',
               bankColor: 'bg-blue-600',
@@ -2353,6 +2360,13 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                       <button key={color} onClick={() => setFormData({ ...formData, cardColor: color })} className={`w-8 h-8 rounded-full ${color} ${formData.cardColor === color ? 'ring-4 ring-offset-2 ring-blue-200' : ''}`} />
                     ))}
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Conta de Pagamento (fatura sai daqui)</label>
+                  <select value={formData.cardBankAccountId} onChange={(e) => setFormData({ ...formData, cardBankAccountId: e.target.value })} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold outline-none appearance-none">
+                    <option value="">Nenhuma (definir depois)</option>
+                    {bankAccounts.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
                 </div>
               </div>
             ) : (isAddingBank || editingBankId) ? (
