@@ -52,13 +52,12 @@ function brDate(iso: string): string {
   return iso.split("-").reverse().join("/");
 }
 
-// Última transação lançada pelo bot (para correção / desfazer)
+// Última transação (para correção / desfazer)
 async function getLastBotTransaction() {
   const { data } = await supabase
     .from("transactions")
-    .select("id, description, category, value, status, date")
+    .select("id, description, category, value, status, date, account")
     .eq("user_id", FINAI_USER_ID)
-    .eq("account", "Telegram")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -75,6 +74,34 @@ interface Parsed {
   description: string;
   date: string;           // YYYY-MM-DD
   day_of_month: number;   // 1..31 quando recorrente; senão 0
+  bank: string;           // conta/banco mencionado ("nubank", "itau"); "" se nenhum
+}
+
+// normaliza para comparar nomes de conta (sem acento, minúsculo)
+function norm(s: string): string {
+  return (s || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+}
+
+// acha a conta bancária que casa com o que foi mencionado na frase
+async function matchBankAccount(mention: string) {
+  if (!mention) return null;
+  const { data } = await supabase
+    .from("bank_accounts")
+    .select("id, name, balance")
+    .eq("user_id", FINAI_USER_ID);
+  if (!data || data.length === 0) return null;
+  const m = norm(mention);
+  return data.find((b: any) => {
+    const n = norm(b.name);
+    return n === m || n.includes(m) || m.includes(n);
+  }) || null;
+}
+
+// extrai a conta a partir de um rótulo tipo "Nubank (Débito)"
+async function bankFromAccountLabel(label: string) {
+  const m = label && label.match(/^(.+)\s*\((Crédito|Débito)\)$/);
+  if (!m) return null;
+  return await matchBankAccount(m[1].trim());
 }
 
 async function parseMessage(text: string): Promise<Parsed | null> {
@@ -96,9 +123,10 @@ Campos:
 - "description": curta (ex: "iFood", "Uber", "Salário", "Aluguel").
 - "date": resolva "hoje/ontem/anteontem" relativo a ${hoje}. Sem data => ${hoje}.
 - "day_of_month": se intent="recorrente", o dia (1..31). Senão 0.
+- "bank": nome do banco/conta mencionado, se houver. Ex: "pelo nubank"->"nubank", "no itaú"->"itaú", "débito do inter"->"inter", "caiu no bradesco"->"bradesco". Se nenhum banco for citado, "".
 
 Responda APENAS JSON válido, sem markdown:
-{"intent":"lancar","value":0,"type":"despesa","category":"Outros","description":"","date":"${hoje}","day_of_month":0}
+{"intent":"lancar","value":0,"type":"despesa","category":"Outros","description":"","date":"${hoje}","day_of_month":0,"bank":""}
 
 Mensagem: "${text}"`;
 
@@ -132,6 +160,7 @@ Mensagem: "${text}"`;
     if (!p.description) p.description = p.category;
     p.day_of_month = Number(p.day_of_month) || 0;
     if (p.day_of_month < 0 || p.day_of_month > 31) p.day_of_month = 0;
+    p.bank = typeof p.bank === "string" ? p.bank.trim() : "";
     return p as Parsed;
   } catch (e) {
     console.error("JSON parse falhou:", raw, e);
@@ -166,9 +195,10 @@ Deno.serve(async (req) => {
       chatId,
       "👋 *FinAI Bot*\nManda teu gasto ou receita que eu lanço.\n\n" +
         "*Avulso:*\n• `gastei 45 no ifood`\n• `recebi 300 de freela`\n• `salário 5000`\n\n" +
+        "*Vincular a uma conta:* cite o banco na frase\n• `gastei 50 no mercado pelo nubank`\n• `recebi 5000 no itaú`\n_(atualiza o saldo da conta automaticamente)_\n\n" +
         "*Recorrência (todo mês):*\n• `salário 5000 todo dia 5`\n• `aluguel 1200 recorrente dia 10`\n\n" +
         "*Corrigir o último:*\n• `não é gasto, é salário`\n• `muda pra 700`\n\n" +
-        "*Comandos:*\n• `/recorrentes` — lista\n• `/remover <nome>` — desativa recorrência\n• `/desfazer` — apaga o último lançamento",
+        "*Comandos:*\n• `/contas` — lista suas contas e saldos\n• `/recorrentes` — lista recorrências\n• `/remover <nome>` — desativa recorrência\n• `/desfazer` — apaga o último lançamento",
     );
     return new Response("ok");
   }
@@ -182,8 +212,29 @@ Deno.serve(async (req) => {
       await sendTelegram(chatId, "🤷 Não há lançamento recente pra desfazer.");
       return new Response("ok");
     }
+    // reverter saldo se estava vinculada a uma conta
+    const linked = await bankFromAccountLabel(last.account);
+    if (linked) {
+      await supabase.from("bank_accounts")
+        .update({ balance: Number(linked.balance) - Number(last.value) })
+        .eq("id", linked.id);
+    }
     await supabase.from("transactions").delete().eq("id", last.id);
-    await sendTelegram(chatId, `🗑️ Desfeito: *${last.description}* (R$ ${Math.abs(last.value).toFixed(2)})`);
+    const extra = linked ? `\n🏦 Saldo de ${linked.name} restaurado.` : "";
+    await sendTelegram(chatId, `🗑️ Desfeito: *${last.description}* (R$ ${Math.abs(last.value).toFixed(2)})${extra}`);
+    return new Response("ok");
+  }
+  if (low === "/contas") {
+    const { data } = await supabase
+      .from("bank_accounts")
+      .select("name, balance")
+      .eq("user_id", FINAI_USER_ID).order("name");
+    if (!data || data.length === 0) {
+      await sendTelegram(chatId, "🏦 Você não tem contas cadastradas. Adicione na aba *Bancos* do app.");
+      return new Response("ok");
+    }
+    const linhas = data.map((b: any) => `• *${b.name}* — R$ ${Number(b.balance).toFixed(2)}`);
+    await sendTelegram(chatId, "🏦 *Suas contas:*\n" + linhas.join("\n") + "\n\n_Use citando na frase: \"gastei 50 no nubank\"._");
     return new Response("ok");
   }
   if (low === "/recorrentes") {
@@ -240,13 +291,26 @@ Deno.serve(async (req) => {
     const newValue = signed(mag, p.type);
     const newDesc = p.description && p.description !== p.category ? p.description : last.description;
     const newCat = p.category !== "Outros" ? p.category : last.category;
+    // se mudar tipo (despesa<->receita), corrige o sufixo do rótulo da conta
+    let newAccount = last.account;
+    const labelMatch = typeof last.account === "string" && last.account.match(/^(.+)\s*\((Crédito|Débito)\)$/);
+    if (labelMatch) newAccount = `${labelMatch[1].trim()} (${newValue < 0 ? "Débito" : "Crédito"})`;
     await supabase.from("transactions")
-      .update({ value: newValue, description: newDesc, category: newCat })
+      .update({ value: newValue, description: newDesc, category: newCat, account: newAccount })
       .eq("id", last.id);
+    // ajustar saldo da conta vinculada pela diferença
+    const linkedC = await bankFromAccountLabel(last.account);
+    if (linkedC) {
+      const delta = newValue - Number(last.value);
+      await supabase.from("bank_accounts")
+        .update({ balance: Number(linkedC.balance) + delta })
+        .eq("id", linkedC.id);
+    }
     const emoji = newValue < 0 ? "💸" : "💰";
+    const contaC = linkedC ? `\n🏦 ${linkedC.name} → saldo R$ ${(Number(linkedC.balance) + (newValue - Number(last.value))).toFixed(2)}` : "";
     await sendTelegram(
       chatId,
-      `✏️ *Corrigido!*\n${emoji} ${newDesc}\n📂 ${newCat}\n💵 R$ ${Math.abs(newValue).toFixed(2)}\n_(${newValue < 0 ? "Gasto" : "Receita"})_`,
+      `✏️ *Corrigido!*\n${emoji} ${newDesc}\n📂 ${newCat}\n💵 R$ ${Math.abs(newValue).toFixed(2)}\n_(${newValue < 0 ? "Gasto" : "Receita"})_${contaC}`,
     );
     return new Response("ok");
   }
@@ -285,20 +349,46 @@ Deno.serve(async (req) => {
     await sendTelegram(chatId, "💵 Não peguei o valor. Ex: `gastei 45 no ifood`");
     return new Response("ok");
   }
+
+  // Vincular a uma conta bancária se foi mencionada na frase
+  const bankAcc = await matchBankAccount(p.bank);
+  let accountLabel = "Telegram";
+  let aviso = "";
+  if (bankAcc) {
+    accountLabel = `${bankAcc.name} (${value < 0 ? "Débito" : "Crédito"})`;
+  } else if (p.bank) {
+    // mencionou um banco que não bate com nenhuma conta cadastrada
+    aviso = `\n\n⚠️ Não achei a conta "${p.bank}" — lancei sem vincular. Veja /contas`;
+  }
+
   const { error } = await supabase.from("transactions").insert({
     user_id: FINAI_USER_ID, date: p.date, description: p.description,
-    category: p.category, account: "Telegram", value, status: "Pago",
+    category: p.category, account: accountLabel, value, status: "Pago",
   });
   if (error) {
     console.error("Insert transação:", error);
     await sendTelegram(chatId, "🙈 Tive um problema ao salvar. Tenta de novo.");
     return new Response("ok");
   }
+
+  // Atualizar o saldo da conta (gasto diminui, receita aumenta)
+  if (bankAcc) {
+    const novoSaldo = Number(bankAcc.balance) + value;
+    const { error: balErr } = await supabase
+      .from("bank_accounts")
+      .update({ balance: novoSaldo })
+      .eq("id", bankAcc.id);
+    if (balErr) console.error("Update saldo:", balErr);
+  }
+
   const emoji = value < 0 ? "💸" : "💰";
   const tipo = value < 0 ? "Gasto" : "Receita";
+  const contaMsg = bankAcc
+    ? `\n🏦 ${bankAcc.name} → saldo R$ ${(Number(bankAcc.balance) + value).toFixed(2)}`
+    : "";
   await sendTelegram(
     chatId,
-    `✅ *${tipo} lançado!*\n${emoji} ${p.description}\n📂 ${p.category}\n💵 R$ ${Math.abs(value).toFixed(2)}\n📅 ${brDate(p.date)}\n\n_Errado? Manda \`/desfazer\` ou \"é receita\"._`,
+    `✅ *${tipo} lançado!*\n${emoji} ${p.description}\n📂 ${p.category}\n💵 R$ ${Math.abs(value).toFixed(2)}\n📅 ${brDate(p.date)}${contaMsg}${aviso}\n\n_Errado? Manda \`/desfazer\` ou \"é receita\"._`,
   );
   return new Response("ok");
 });
