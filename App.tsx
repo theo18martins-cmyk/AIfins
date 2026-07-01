@@ -65,7 +65,13 @@ const Modal = ({ isOpen, onClose, title, children }: any) => {
 const App: React.FC = () => {
   const gemini = useMemo(() => new GeminiService(), []);
   const [activeTab, setActiveTab] = useState<AnalysisMode>(AnalysisMode.DASHBOARD);
-  const [dateRange, setDateRange] = useState({ from: '2025-10-01', to: '2026-01-31' });
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth() - 5, 1); // 6 meses atrás
+    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);   // fim do mês atual
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { from: fmt(from), to: fmt(to) };
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -924,7 +930,7 @@ const App: React.FC = () => {
       // Calcular resumos financeiros para dar contexto à IA
       const totalBankBalance = bankAccounts.reduce((acc, b) => acc + b.balance, 0);
       const totalCreditLimit = creditCards.reduce((acc, c) => acc + c.limit, 0);
-      const totalCreditBill = creditCards.reduce((acc, c) => acc + c.bill, 0);
+      const totalCreditBill = creditCards.reduce((acc, c) => acc + c.bill + ((c as any).closedBill || 0), 0);
       const creditUsagePercent = totalCreditLimit > 0 ? ((totalCreditBill / totalCreditLimit) * 100).toFixed(1) : '0';
 
       const totalIncome = transactions.filter(t => t.val > 0).reduce((acc, t) => acc + t.val, 0);
@@ -3136,7 +3142,8 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                     </div>
                     <div className="space-y-8">
                       {creditCards.map(card => {
-                        const usagePercent = (card.bill / card.limit) * 100;
+                        const totalFatura = card.bill + ((card as any).closedBill || 0);
+                        const usagePercent = card.limit > 0 ? (totalFatura / card.limit) * 100 : 0;
                         return (
                           <div key={card.id} className="group p-1 relative">
                             <div className="flex justify-between items-center mb-4">
@@ -3172,9 +3179,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                                 <div className="text-right">
                                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{(card as any).closedBill > 0 ? 'Aberta' : 'Fatura'}</p>
                                   <p className="text-sm font-black text-slate-800 tracking-tighter">R$ {card.bill.toLocaleString()}</p>
-                                  {(card as any).closedBill > 0
-                                    ? <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Fechada: R$ {(card as any).closedBill.toLocaleString()}</p>
-                                    : <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Pago: R$ {card.paid.toLocaleString()}</p>}
+                                  {(card as any).closedBill > 0 && <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Fechada a pagar: R$ {(card as any).closedBill.toLocaleString()}</p>}
                                 </div>
                               </div>
                             </div>
@@ -3184,7 +3189,7 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                               </div>
                               <div className="flex justify-between items-center px-1">
                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Uso do Limite: {usagePercent.toFixed(0)}%</span>
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Disponível: R$ {(card.limit - card.bill).toLocaleString()}</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Disponível: R$ {(card.limit - totalFatura).toLocaleString()}</span>
                               </div>
                             </div>
                           </div>
@@ -3199,16 +3204,16 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                       <div className="space-y-10">
                         <div>
                           <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total em Faturas</p>
-                          <p className="text-white text-4xl font-black tracking-tighter">R$ {creditCards.reduce((acc, c) => acc + c.bill, 0).toLocaleString()}</p>
+                          <p className="text-white text-4xl font-black tracking-tighter">R$ {creditCards.reduce((acc, c) => acc + c.bill + ((c as any).closedBill || 0), 0).toLocaleString()}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-6">
                           <div className="p-5 bg-white/5 rounded-[1.5rem] border border-white/5">
-                            <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mb-1">Total Pago</p>
-                            <p className="text-white text-lg font-black tracking-tight">R$ {creditCards.reduce((acc, c) => acc + c.paid, 0).toLocaleString()}</p>
+                            <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mb-1">Aberta (atual)</p>
+                            <p className="text-white text-lg font-black tracking-tight">R$ {creditCards.reduce((acc, c) => acc + c.bill, 0).toLocaleString()}</p>
                           </div>
                           <div className="p-5 bg-white/5 rounded-[1.5rem] border border-white/5">
-                            <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mb-1">Pendente</p>
-                            <p className="text-white text-lg font-black tracking-tight">R$ {(creditCards.reduce((acc, c) => acc + c.bill, 0) - creditCards.reduce((acc, c) => acc + c.paid, 0)).toLocaleString()}</p>
+                            <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mb-1">Fechada (a pagar)</p>
+                            <p className="text-white text-lg font-black tracking-tight">R$ {creditCards.reduce((acc, c) => acc + ((c as any).closedBill || 0), 0).toLocaleString()}</p>
                           </div>
                         </div>
                       </div>
