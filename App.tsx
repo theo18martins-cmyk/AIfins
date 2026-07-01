@@ -289,7 +289,10 @@ const App: React.FC = () => {
         bill: Number(c.bill) || 0,
         paid: Number(c.paid) || 0,
         color: c.color || 'bg-slate-600',
-        bankAccountId: c.bank_account_id || ''
+        bankAccountId: c.bank_account_id || '',
+        closingDay: c.closing_day || null,
+        dueDay: c.due_day || null,
+        closedBill: Number(c.closed_bill) || 0
       })) || []);
 
       // Fetch Budgets
@@ -774,6 +777,8 @@ const App: React.FC = () => {
     cardPaid: '',
     cardColor: 'bg-blue-600',
     cardBankAccountId: '',
+    cardClosingDay: '',
+    cardDueDay: '',
     bankType: 'Conta Corrente' as BankAccount['type'],
     bankBalance: '',
     bankColor: 'bg-blue-600',
@@ -1332,7 +1337,9 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
       cardBill: card.bill.toString(),
       cardPaid: card.paid.toString(),
       cardColor: card.color,
-      cardBankAccountId: (card as any).bankAccountId || ''
+      cardBankAccountId: (card as any).bankAccountId || '',
+      cardClosingDay: (card as any).closingDay ? String((card as any).closingDay) : '',
+      cardDueDay: (card as any).dueDay ? String((card as any).dueDay) : ''
     });
     setIsModalOpen(true);
   };
@@ -1361,11 +1368,13 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
         credit_limit: parseFloat(formData.cardLimit) || 0,
         bill: parseFloat(formData.cardBill) || 0,
         color: formData.cardColor,
-        bank_account_id: formData.cardBankAccountId || null
+        bank_account_id: formData.cardBankAccountId || null,
+        closing_day: parseInt(formData.cardClosingDay) || null,
+        due_day: parseInt(formData.cardDueDay) || null
       };
       const { error } = await supabase.from('credit_cards').update(updatedCard).eq('id', editingCardId);
       if (error) { showToast("Erro ao atualizar cartão.", "error"); return; }
-      setCreditCards(prev => prev.map(c => c.id === editingCardId ? { ...c, name: updatedCard.name, limit: updatedCard.credit_limit, bill: updatedCard.bill, color: updatedCard.color, bankAccountId: updatedCard.bank_account_id } : c));
+      setCreditCards(prev => prev.map(c => c.id === editingCardId ? { ...c, name: updatedCard.name, limit: updatedCard.credit_limit, bill: updatedCard.bill, color: updatedCard.color, bankAccountId: updatedCard.bank_account_id, closingDay: updatedCard.closing_day, dueDay: updatedCard.due_day } : c));
       showToast("Cartão atualizado com sucesso!", "success");
     } else if (isAddingCard) {
       if (!formData.name || !formData.cardLimit) {
@@ -1378,11 +1387,13 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
         credit_limit: parseFloat(formData.cardLimit) || 0,
         bill: parseFloat(formData.cardBill) || 0,
         color: formData.cardColor,
-        bank_account_id: formData.cardBankAccountId || null
+        bank_account_id: formData.cardBankAccountId || null,
+        closing_day: parseInt(formData.cardClosingDay) || null,
+        due_day: parseInt(formData.cardDueDay) || null
       };
       const { data, error } = await supabase.from('credit_cards').insert(newCard).select().single();
       if (error) { showToast("Erro ao adicionar cartão.", "error"); return; }
-      setCreditCards([...creditCards, { id: data.id, name: data.name, bank: data.name, limit: data.credit_limit, bill: data.bill, paid: data.paid || 0, color: data.color, bankAccountId: data.bank_account_id }]);
+      setCreditCards([...creditCards, { id: data.id, name: data.name, bank: data.name, limit: data.credit_limit, bill: data.bill, paid: data.paid || 0, color: data.color, bankAccountId: data.bank_account_id, closingDay: data.closing_day, dueDay: data.due_day, closedBill: data.closed_bill || 0 }]);
       showToast("Cartão adicionado com sucesso!", "success");
     } else if (editingBankId) {
       const updatedBank = {
@@ -1745,6 +1756,8 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
       cardPaid: '',
       cardColor: 'bg-blue-600',
       cardBankAccountId: '',
+      cardClosingDay: '',
+      cardDueDay: '',
       bankType: 'Conta Corrente',
       bankBalance: '',
       bankColor: 'bg-blue-600',
@@ -2308,6 +2321,8 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
               cardPaid: '',
               cardColor: 'bg-blue-600',
               cardBankAccountId: '',
+              cardClosingDay: '',
+              cardDueDay: '',
               bankType: 'Conta Corrente',
               bankBalance: '',
               bankColor: 'bg-blue-600',
@@ -2367,6 +2382,16 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                     <option value="">Nenhuma (definir depois)</option>
                     {bankAccounts.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dia de Fechamento</label>
+                    <input type="number" min="1" max="31" value={formData.cardClosingDay} onChange={(e) => setFormData({ ...formData, cardClosingDay: e.target.value })} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold outline-none" placeholder="Ex: 28" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dia de Vencimento</label>
+                    <input type="number" min="1" max="31" value={formData.cardDueDay} onChange={(e) => setFormData({ ...formData, cardDueDay: e.target.value })} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold outline-none" placeholder="Ex: 5" />
+                  </div>
                 </div>
               </div>
             ) : (isAddingBank || editingBankId) ? (
@@ -3120,6 +3145,11 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                                 <div>
                                   <h4 className="font-black text-slate-800 text-sm tracking-tight">{card.name}</h4>
                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Limite: R$ {card.limit.toLocaleString()}</p>
+                                  {((card as any).closingDay || (card as any).dueDay) && (
+                                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">
+                                      {(card as any).closingDay ? `Fecha dia ${(card as any).closingDay}` : ''}{(card as any).closingDay && (card as any).dueDay ? ' · ' : ''}{(card as any).dueDay ? `Vence dia ${(card as any).dueDay}` : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center space-x-3">
@@ -3140,8 +3170,11 @@ ${transactions.slice(0, 10).map(t => `- ${t.date}: ${t.desc} (${t.cat}) - R$ ${t
                                   </button>
                                 </div>
                                 <div className="text-right">
+                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{(card as any).closedBill > 0 ? 'Aberta' : 'Fatura'}</p>
                                   <p className="text-sm font-black text-slate-800 tracking-tighter">R$ {card.bill.toLocaleString()}</p>
-                                  <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Pago: R$ {card.paid.toLocaleString()}</p>
+                                  {(card as any).closedBill > 0
+                                    ? <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Fechada: R$ {(card as any).closedBill.toLocaleString()}</p>
+                                    : <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Pago: R$ {card.paid.toLocaleString()}</p>}
                                 </div>
                               </div>
                             </div>

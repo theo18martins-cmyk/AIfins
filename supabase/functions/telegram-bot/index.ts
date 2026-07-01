@@ -86,7 +86,7 @@ async function listAccounts() {
   return data || [];
 }
 async function listCards() {
-  const { data } = await supabase.from("credit_cards").select("id, name, bill, bank_account_id").eq("user_id", FINAI_USER_ID).order("name");
+  const { data } = await supabase.from("credit_cards").select("id, name, bill, closed_bill, closing_day, due_day, bank_account_id").eq("user_id", FINAI_USER_ID).order("name");
   return data || [];
 }
 function nameFromLabel(label: string): string | null {
@@ -261,11 +261,22 @@ async function resolveAndComplete(chatId: string, payload: any, method: string, 
 
 // ---------- pagar fatura ----------
 async function payFatura(chatId: string, card: any, amountSpec: number) {
-  const bill = Number(card.bill);
-  if (bill <= 0) { await sendTelegram(chatId, `🧾 A fatura do *${card.name}* já está zerada.`); await clearPending(chatId); return; }
-  const amount = amountSpec > 0 ? Math.min(amountSpec, bill) : bill;
-  const newBill = Math.max(0, bill - amount);
-  await supabase.from("credit_cards").update({ bill: newBill }).eq("id", card.id);
+  const closed = Number(card.closed_bill) || 0; // fatura fechada (a que venceu)
+  const open = Number(card.bill) || 0;          // fatura aberta (ciclo atual)
+  const totalDevido = closed + open;
+  if (totalDevido <= 0) { await sendTelegram(chatId, `🧾 A fatura do *${card.name}* já está zerada.`); await clearPending(chatId); return; }
+
+  // padrão: paga a fechada (a que venceu); se não houver, paga a aberta
+  const alvoDefault = closed > 0 ? closed : open;
+  const amount = amountSpec > 0 ? Math.min(amountSpec, totalDevido) : alvoDefault;
+
+  // abate primeiro da fechada, depois da aberta
+  let restante = amount;
+  const pagoClosed = Math.min(restante, closed); restante -= pagoClosed;
+  const pagoOpen = Math.min(restante, open); restante -= pagoOpen;
+  const newClosed = closed - pagoClosed;
+  const newOpen = open - pagoOpen;
+  await supabase.from("credit_cards").update({ closed_bill: newClosed, bill: newOpen }).eq("id", card.id);
 
   let contaTxt = "";
   if (card.bank_account_id) {
@@ -283,7 +294,8 @@ async function payFatura(chatId: string, card: any, amountSpec: number) {
     contaTxt = `\n⚠️ Cartão sem conta vinculada — não debitei nenhuma conta. Vincule no app.`;
   }
   await clearPending(chatId);
-  await sendTelegram(chatId, `🧾 *Fatura paga!*\n💳 ${card.name}\n💵 R$ ${amount.toFixed(2)}\nFatura restante: R$ ${newBill.toFixed(2)}${contaTxt}`);
+  const restanteTxt = (newClosed + newOpen) > 0 ? `\nRestante: R$ ${(newClosed + newOpen).toFixed(2)} (fechada ${newClosed.toFixed(2)} + aberta ${newOpen.toFixed(2)})` : "\n✅ Tudo quitado!";
+  await sendTelegram(chatId, `🧾 *Fatura paga!*\n💳 ${card.name}\n💵 R$ ${amount.toFixed(2)}${restanteTxt}${contaTxt}`);
 }
 
 // ---------- callback (botões) ----------
@@ -359,7 +371,21 @@ Deno.serve(async (req) => {
   if (low === "/cartoes" || low === "/cartões") {
     const cards = await listCards();
     if (!cards.length) { await sendTelegram(chatId, "💳 Sem cartões. Adicione na aba *Bancos* do app."); return new Response("ok"); }
-    await sendTelegram(chatId, "💳 *Seus cartões:*\n" + cards.map((c: any) => `• *${c.name}* — fatura R$ ${Number(c.bill).toFixed(2)}`).join("\n"));
+    const linhas = cards.map((c: any) => {
+      const closed = Number(c.closed_bill) || 0;
+      const open = Number(c.bill) || 0;
+      let s = `💳 *${c.name}*`;
+      if (closed > 0) s += `\n   🔴 Fechada (a pagar): R$ ${closed.toFixed(2)}`;
+      s += `\n   🟢 Aberta (atual): R$ ${open.toFixed(2)}`;
+      if (c.closing_day || c.due_day) {
+        const partes = [];
+        if (c.closing_day) partes.push(`fecha dia ${c.closing_day}`);
+        if (c.due_day) partes.push(`vence dia ${c.due_day}`);
+        s += `\n   📅 ${partes.join(" · ")}`;
+      }
+      return s;
+    });
+    await sendTelegram(chatId, "💳 *Seus cartões:*\n" + linhas.join("\n\n"));
     return new Response("ok");
   }
   if (low === "/desfazer") {
